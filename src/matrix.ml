@@ -16,8 +16,8 @@ let make ~h ~w ~f =
   in
   List.iter (List.cartesian_product (List.range 0 final_matrix.h) (List.range 0 final_matrix.w))
     ~f:calc_and_set_cell;
-
   final_matrix
+  
 exception Unimplmented of string
 
 let check_add_compatible t1 t2 = 
@@ -27,7 +27,6 @@ let check_mult_compatible t1 t2 =
   assert (t1.w = t2.h)
 let add t1 t2 = 
   check_add_compatible t1 t2;
-
   make ~h:t1.h ~w:t1.w ~f:(fun row col -> (get t1 row col) + (get t2 row col))
 let mult_normal t1 t2 = 
   check_mult_compatible t1 t2;
