@@ -10,14 +10,11 @@ let set t row col v =
 let get t row col = 
   t.m.(col).(row)
 (* like create, except rather than a singular value, it takes a function of form row -> col -> val *)
-let make ~h ~w ~f = 
-  let final_matrix = create ~h ~w ~default:(f 0 0) in 
-  let calc_and_set_cell (row, col) = 
-    set final_matrix row col (f row col)
+let init ~h ~w ~f = 
+  let init_column col = 
+    Array.init h ~f:(fun row -> f row col) 
   in
-  List.iter (List.cartesian_product (List.range 0 final_matrix.h) (List.range 0 final_matrix.w))
-    ~f:calc_and_set_cell;
-  final_matrix
+  Array.init w ~f:init_column
   
 exception Unimplmented of string
 
@@ -28,13 +25,13 @@ let check_mult_compatible t1 t2 =
   assert (t1.w = t2.h)
 let add t1 t2 = 
   check_add_compatible t1 t2;
-  make ~h:t1.h ~w:t1.w ~f:(fun row col -> (get t1 row col) + (get t2 row col))
+  init ~h:t1.h ~w:t1.w ~f:(fun row col -> (get t1 row col) + (get t2 row col))
 let mult_normal t1 t2 = 
   check_mult_compatible t1 t2;
   let calculate_cell row col = 
     List.sum (module Int) (List.range 0 t1.w) ~f:(fun i -> (get t1 row i) * (get t2 i col))
   in
-  make ~h:t1.h ~w:t2.w ~f:calculate_cell
+  init ~h:t1.h ~w:t2.w ~f:calculate_cell
 let mult_stras t1 t2 _min_size = 
   check_mult_compatible t1 t2;
   raise (Unimplmented "mult_stras not implemented") 
