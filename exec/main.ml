@@ -1,6 +1,8 @@
 open! Core
 open Src
 
-let m = Matrix.init ~h:10 ~w:10 ~f:(fun row col -> row + col)
+let m1 = Matrix.init ~h:2 ~w:2 ~f:(fun row col -> row + col)
 
-let () = Matrix.print m
+let m2 = Matrix.init ~h:2 ~w:4 ~f:(fun row col -> row + col)
+
+let () = Matrix.print (Matrix.mult_normal m1 m2)

@@ -14,6 +14,8 @@ let init ~h ~w ~f =
   let init_column col = Array.init h ~f:(fun row -> f row col) in
   { h; w; m = Array.init w ~f:init_column }
 
+let transpose t = init ~h:t.w ~w:t.h ~f:(fun row col -> get t col row)
+
 let check_add_compatible t1 t2 = assert (t1.w = t2.w && t1.h = t2.h)
 
 let check_mult_compatible t1 t2 = assert (t1.w = t2.h)
@@ -93,3 +95,37 @@ let rec mult_stras t1 t2 _min_size =
     let t21 = add p3 p4 in
     let t22 = subtract (add p5 p1) (add p3 p7) in
     make_from_submatrices t11 t12 t21 t22
+
+let print t =
+  printf "H: %n, W: %n\n" t.h t.w;
+  let t = transpose t in
+  let num_size n =
+    if n = 0 then 1 else 1 + Int.of_float (log (Float.of_int n) /. log 10.0)
+  in
+  let max_num_size_row row =
+    let max = Array.max_elt (Array.map row ~f:num_size) ~compare:Int.compare in
+    Option.value max ~default:0
+  in
+  let max_num_size =
+    Option.value
+      (Array.max_elt (Array.map t.m ~f:max_num_size_row) ~compare:Int.compare)
+      ~default:0
+  in
+  let horizontal = String.make ((t.h * (max_num_size + 1)) + 3) "-".[0] in
+  let print_correct n =
+    let msg =
+      String.concat
+        [
+          String.make (max_num_size - num_size n) " ".[0]; Int.to_string n; " ";
+        ]
+    in
+    print_string msg
+  in
+  let print_line row =
+    printf "| ";
+    Array.iter row ~f:print_correct;
+    printf "|\n"
+  in
+  print_endline horizontal;
+  Array.iter t.m ~f:print_line;
+  print_endline horizontal
