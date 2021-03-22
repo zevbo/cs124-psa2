@@ -1,7 +1,7 @@
 open! Core
 open Src
 
-let mat = Matrix.init ~h:512 ~w:512 ~f:(fun row col -> row + col)
+let mat = Matrix.init ~h:100 ~w:100 ~f:(fun row col -> row + col)
 
 let () =
   let m1 = Matrix.mult_normal mat mat in

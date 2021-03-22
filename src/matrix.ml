@@ -5,9 +5,30 @@ type 'a t = { h : int; w : int; m : 'a array array }
 let create ~h ~w ~default =
   { h; w; m = Array.make_matrix ~dimx:w ~dimy:h default }
 
+exception Matrix_outofbounds of string
+
 let set t row col v = t.m.(col).(row) <- v
 
-let get t row col = t.m.(col).(row)
+let get t row col =
+  let check_in_bounds v max =
+    if v < 0 || v >= max then
+      raise
+        (Matrix_outofbounds
+           (String.concat
+              [
+                "Attempted to get (";
+                Int.to_string row;
+                ", ";
+                Int.to_string col;
+                ") from matrix of size ";
+                Int.to_string t.h;
+                " x ";
+                Int.to_string t.w;
+              ]))
+  in
+  check_in_bounds row t.h;
+  check_in_bounds col t.w;
+  t.m.(col).(row)
 
 (* like create, except rather than a singular value, it takes a function of form row -> col -> val *)
 let init ~h ~w ~f =
@@ -27,6 +48,10 @@ let add t1 t2 =
 let subtract t1 t2 =
   check_add_compatible t1 t2;
   init ~h:t1.h ~w:t1.w ~f:(fun row col -> get t1 row col - get t2 row col)
+
+let equal t1 t2 =
+  let rows_equal = Array.equal ( = ) in
+  t1.h = t2.h && t1.w = t2.w && Array.equal rows_equal t1.m t2.m
 
 let mult_normal t1 t2 =
   check_mult_compatible t1 t2;
@@ -62,26 +87,26 @@ let make_from_submatrices t11 t12 t21 t22 =
     let mat_to_use =
       if top_row then if top_col then t11 else t12
       else if top_col then t21
-      else t12
+      else t22
     in
     get mat_to_use (row - row0) (col - col0)
   in
   init ~h ~w ~f:get_val
 
-let rec mult_stras t1 t2 _min_size =
+let split_on_point t row col =
+  ( submatrix t 0 row 0 col,
+    submatrix t 0 row col t.w,
+    submatrix t row t.h 0 col,
+    submatrix t row t.h col t.w )
+
+let rec mult_stras_2_power t1 t2 min_size =
   check_mult_compatible t1 t2;
-  let mult_stras t1 t2 = mult_stras t1 t2 _min_size in
+  let mult_stras t1 t2 = mult_stras_2_power t1 t2 min_size in
   (*Assumes that matrices are square and have sizes that are powers of 2*)
-  if t1.h <= _min_size then mult_normal t1 t2
+  if t1.h <= min_size then mult_normal t1 t2
   else
-    let a = submatrix t1 0 (t1.h / 2) 0 (t1.w / 2) in
-    let b = submatrix t1 0 (t1.h / 2) (t1.w / 2) t1.w in
-    let c = submatrix t1 (t1.h / 2) t1.h 0 (t1.w / 2) in
-    let d = submatrix t1 (t1.h / 2) t1.h (t1.w / 2) t1.w in
-    let e = submatrix t2 0 (t2.h / 2) 0 (t2.w / 2) in
-    let f = submatrix t2 0 (t2.h / 2) (t2.w / 2) t2.w in
-    let g = submatrix t2 (t2.h / 2) t2.h 0 (t2.w / 2) in
-    let h = submatrix t2 (t2.h / 2) t2.h (t2.w / 2) t2.w in
+    let a, b, c, d = split_on_point t1 (t1.h / 2) (t1.w / 2) in
+    let e, f, g, h = split_on_point t2 (t2.h / 2) (t2.w / 2) in
 
     let p1 = mult_stras a (subtract f h) in
     let p2 = mult_stras (add a b) h in
@@ -96,11 +121,26 @@ let rec mult_stras t1 t2 _min_size =
     let t22 = subtract (add p5 p1) (add p3 p7) in
     make_from_submatrices t11 t12 t21 t22
 
+let pad t =
+  let round_up v =
+    Int.of_float
+      (2. ** Float.round_up (log (Float.of_int v) /. log (Float.of_int 2)))
+  in
+  let h = round_up t.h in
+  let w = round_up t.w in
+  init ~h ~w ~f:(fun row col ->
+      if row < t.h && col < t.w then get t row col else 0)
+
+let mult_stras t1 t2 min_size =
+  let result = mult_stras_2_power (pad t1) (pad t2) min_size in
+  submatrix result 0 t1.h 0 t2.w
+
 let print t =
   printf "H: %n, W: %n\n" t.h t.w;
   let t = transpose t in
   let num_size n =
-    if n = 0 then 1 else 1 + Int.of_float (log (Float.of_int n) /. log 10.0)
+    if n = 0 then 1
+    else Int.of_float (Float.round_up (log (Float.of_int n) /. log 10.0))
   in
   let max_num_size_row row =
     let max = Array.max_elt (Array.map row ~f:num_size) ~compare:Int.compare in
