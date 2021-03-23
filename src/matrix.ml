@@ -99,9 +99,9 @@ let split_on_point t row col =
     submatrix t row t.h 0 col,
     submatrix t row t.h col t.w )
 
-let rec mult_stras_2_power t1 t2 min_size =
+let rec mult_stras_2_power min_size t1 t2 =
   check_mult_compatible t1 t2;
-  let mult_stras t1 t2 = mult_stras_2_power t1 t2 min_size in
+  let mult_stras = mult_stras_2_power min_size in
   (*Assumes that matrices are square and have sizes that are powers of 2*)
   if t1.h <= min_size then mult_normal t1 t2
   else
@@ -131,15 +131,15 @@ let pad t =
   init ~h ~w ~f:(fun row col ->
       if row < t.h && col < t.w then get t row col else 0)
 
-let mult_stras t1 t2 min_size =
-  let result = mult_stras_2_power (pad t1) (pad t2) min_size in
+let mult_stras min_size t1 t2 =
+  let result = mult_stras_2_power min_size (pad t1) (pad t2) in
   submatrix result 0 t1.h 0 t2.w
 
 let print t =
   printf "H: %n, W: %n\n" t.h t.w;
   let t = transpose t in
   let num_size n =
-    if n = 0 then 1
+    if n < 2 then 1
     else Int.of_float (Float.round_up (log (Float.of_int n) /. log 10.0))
   in
   let max_num_size_row row =
