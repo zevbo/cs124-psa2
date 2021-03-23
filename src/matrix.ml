@@ -139,6 +139,10 @@ let print t =
   printf "H: %n, W: %n\n" t.h t.w;
   let t = transpose t in
   let num_size n =
+    let extra_one = if n < 0 then 1 else 0 in
+    let n = abs n in
+    extra_one
+    +
     if n < 2 then 1
     else Int.of_float (Float.round_up (log (Float.of_int n) /. log 10.0))
   in
