@@ -4,18 +4,30 @@ type pos = { row : int; col : int }
 
 let create_pos row col = { row; col }
 
-type 'a t = { h : int; w : int; m : 'a array array; tl : pos }
+type 'a t = {
+  h : int;
+  w : int;
+  pad_h : int;
+  pad_w : int;
+  m : 'a array array;
+  tl : pos;
+}
 
 let create ~h ~w ~default =
-  { h; w; m = Array.make_matrix ~dimx:w ~dimy:h default; tl = create_pos 0 0 }
+  {
+    h;
+    w;
+    pad_h = 0;
+    pad_w = 0;
+    m = Array.make_matrix ~dimx:w ~dimy:h default;
+    tl = create_pos 0 0;
+  }
 
 exception Matrix_outofbounds of string
 
 let _copy m =
   let new_m = Array.init (Array.length m.m) ~f:(fun i -> Array.copy m.m.(i)) in
   { m with m = new_m }
-
-let set t row col v = t.m.(col + t.tl.col).(row + t.tl.row) <- v
 
 let get t row col =
   let check_in_bounds v max =
@@ -36,12 +48,21 @@ let get t row col =
   in
   check_in_bounds row t.h;
   check_in_bounds col t.w;
-  try t.m.(col + t.tl.col).(row + t.tl.row) with _ -> 0
+  if row + t.pad_h < t.h && col + t.pad_w < t.w then
+    t.m.(col + t.tl.col).(row + t.tl.row)
+  else 0
 
 (* like create, except rather than a singular value, it takes a function of form row -> col -> val *)
 let init ~h ~w ~f =
   let init_column col = Array.init h ~f:(fun row -> f row col) in
-  { h; w; m = Array.init w ~f:init_column; tl = create_pos 0 0 }
+  {
+    h;
+    w;
+    pad_h = 0;
+    pad_w = 0;
+    m = Array.init w ~f:init_column;
+    tl = create_pos 0 0;
+  }
 
 let submatrix_to_regular t =
   init ~h:t.h ~w:t.w ~f:(fun row col -> get t row col)
@@ -59,6 +80,11 @@ let add t1 t2 =
 let subtract t1 t2 =
   check_add_compatible t1 t2;
   init ~h:t1.h ~w:t1.w ~f:(fun row col -> get t1 row col - get t2 row col)
+
+let long_arithmetic t0 ts_and_sign =
+  init ~h:t0.h ~w:t0.w ~f:(fun row col ->
+      List.fold ts_and_sign ~init:(get t0 row col) ~f:(fun acc (t, sign) ->
+          acc + (sign * get t row col)))
 
 let equal t1 t2 =
   let rows_equal = Array.equal ( = ) in
@@ -115,7 +141,7 @@ let pad_even t =
   let round_up v = if v % 2 = 0 then v else v + 1 in
   let h = round_up t.h in
   let w = round_up t.w in
-  { t with h; w }
+  { t with h; w; pad_h = t.pad_h + h - t.h; pad_w = t.pad_w + w - t.w }
 
 let print t =
   let t = submatrix_to_regular t in
@@ -174,10 +200,10 @@ let rec mult_stras_2_power min_size t1_og t2_og =
     let p5 = mult_stras (add a d) (add e h) in
     let p6 = mult_stras (subtract b d) (add g h) in
     let p7 = mult_stras (subtract a c) (add e f) in
-    let t11 = add (add p5 p4) (subtract p6 p2) in
+    let t11 = long_arithmetic p5 [ (p4, 1); (p6, 1); (p2, -1) ] in
     let t12 = add p1 p2 in
     let t21 = add p3 p4 in
-    let t22 = subtract (add p5 p1) (add p3 p7) in
+    let t22 = long_arithmetic p5 [ (p1, 1); (p3, -1); (p7, -1) ] in
     let result = make_from_submatrices t11 t12 t21 t22 in
     submatrix result 0 t1_og.h 0 t2_og.w
 
