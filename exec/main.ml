@@ -1,5 +1,4 @@
 open! Core
-open Src
 
 let gen_matrix h w min_val max_val =
   Matrix.init ~h ~w ~f:(fun _row _col ->
@@ -24,19 +23,43 @@ let test_speed_w_dim_avg num_trials dim min_val max_val crossover =
   let sum = List.sum (module Float) trials ~f:(fun a -> a) in
   sum /. Float.of_int (List.length trials)
 
-let analye_crossover dim min_val max_val num_trials_per =
+let rec analye_crossover dim ?(on = dim) ?(min_cross = 15) min_val max_val
+    num_trials_per =
   (* lc = logged crossover *)
-  let test lc =
-    test_speed_w_dim_avg num_trials_per dim min_val max_val
-      (Int.of_float (2. ** Float.of_int lc))
+  let on = if on % 2 = 0 then on else on + 1 in
+  if on <= min_cross then []
+  else
+    let curr_speed =
+      test_speed_w_dim_avg num_trials_per dim min_val max_val on
+    in
+    (on, curr_speed)
+    :: analye_crossover dim min_val max_val num_trials_per ~on:(on / 2)
+
+let get_range result =
+  let min, _ =
+    Option.value_exn
+      (List.min_elt result ~compare:(fun (_cross1, t1) (_cross2, t2) ->
+           Float.compare t1 t2))
   in
-  let max_lc =
-    Int.of_float (Float.round_up (log (Float.of_int dim) /. log 2.))
-  in
-  let min_lc = 0 in
-  List.map (List.range min_lc (max_lc + 1)) ~f:(fun lc -> (lc, test lc))
+  (min / 2, min * 2)
+
+let overlap (min1, max1) (min2, max2) =
+  printf "%d, %d\n" min2 max2;
+  if min1 = -1 && max1 = -1 then (min2, max2)
+  else
+    let new_min = max min1 min2 in
+    let new_max = min max1 max2 in
+    if new_max < new_min then (0, 0) else (new_min, new_max)
+
+let create_small_range min_dim max_dim stride min_val max_val num_trials_per =
+  List.fold (List.range min_dim max_dim ~stride) ~init:(-1, -1)
+    ~f:(fun (min, max) dim ->
+      overlap (min, max)
+        (get_range
+           (analye_crossover dim ~min_cross:min min_val max_val num_trials_per)))
 
 let () =
-  let result = analye_crossover 200 (-1) 1 5 in
-  List.iter result ~f:(fun (lc, time) -> printf "lc, time: %n, %f\n" lc time);
+  let m1 = gen_matrix 1024 1024 0 1 in
+  let a = Matrix.mult_stras 44 m1 m1 in
+  let _b = a in
   ()

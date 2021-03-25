@@ -99,12 +99,21 @@ let split_on_point t row col =
     submatrix t row t.h 0 col,
     submatrix t row t.h col t.w )
 
-let rec mult_stras_2_power min_size t1 t2 =
-  check_mult_compatible t1 t2;
+let pad_even t =
+  let round_up v = if v % 2 = 0 then v else v + 1 in
+  let h = round_up t.h in
+  let w = round_up t.w in
+  init ~h ~w ~f:(fun row col ->
+      if row < t.h && col < t.w then get t row col else 0)
+
+let rec mult_stras_2_power min_size t1_og t2_og =
+  check_mult_compatible t1_og t2_og;
   let mult_stras = mult_stras_2_power min_size in
   (*Assumes that matrices are square and have sizes that are powers of 2*)
-  if t1.h <= min_size then mult_normal t1 t2
+  if t1_og.h <= min_size then mult_normal t1_og t2_og
   else
+    let t1 = pad_even t1_og in
+    let t2 = pad_even t2_og in
     let a, b, c, d = split_on_point t1 (t1.h / 2) (t1.w / 2) in
     let e, f, g, h = split_on_point t2 (t2.h / 2) (t2.w / 2) in
 
@@ -119,21 +128,10 @@ let rec mult_stras_2_power min_size t1 t2 =
     let t12 = add p1 p2 in
     let t21 = add p3 p4 in
     let t22 = subtract (add p5 p1) (add p3 p7) in
-    make_from_submatrices t11 t12 t21 t22
+    let result = make_from_submatrices t11 t12 t21 t22 in
+    submatrix result 0 t1_og.h 0 t2_og.w
 
-let pad t =
-  let round_up v =
-    Int.of_float
-      (2. ** Float.round_up (log (Float.of_int v) /. log (Float.of_int 2)))
-  in
-  let h = round_up t.h in
-  let w = round_up t.w in
-  init ~h ~w ~f:(fun row col ->
-      if row < t.h && col < t.w then get t row col else 0)
-
-let mult_stras min_size t1 t2 =
-  let result = mult_stras_2_power min_size (pad t1) (pad t2) in
-  submatrix result 0 t1.h 0 t2.w
+let mult_stras min_size t1 t2 = mult_stras_2_power min_size t1 t2
 
 let print t =
   printf "H: %n, W: %n\n" t.h t.w;
@@ -144,7 +142,7 @@ let print t =
     extra_one
     +
     if n < 2 then 1
-    else Int.of_float (Float.round_up (log (Float.of_int n) /. log 10.0))
+    else Int.of_float (Float.round_up (log (Float.of_int n) /. log 9.99))
   in
   let max_num_size_row row =
     let max = Array.max_elt (Array.map row ~f:num_size) ~compare:Int.compare in
