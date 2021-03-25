@@ -107,21 +107,19 @@ let submatrix t row1 row2 col1 col2 =
   let tl = create_pos row1 col1 in
   { t with h; w; tl }
 
-let make_from_submatrices t11 t12 t21 t22 =
+let gen_make_from_submatrices ~get ~h ~w t11 t12 t21 t22 =
   (*Returns a matrix composed of submatrices*)
-  assert (t11.h = t12.h);
-  assert (t21.h = t22.h);
-  assert (t11.w = t21.w);
-  assert (t12.w = t22.w);
-  assert (t11.w + t12.w = t21.w + t22.w);
-  assert (t11.h + t21.h = t12.h + t22.h);
-  let h = t11.h + t21.h in
-  let w = t11.w + t12.w in
+  assert (h t11 = h t12);
+  assert (h t21 = h t22);
+  assert (w t11 = w t21);
+  assert (w t12 = w t22);
+  assert (w t11 + w t12 = w t21 + w t22);
+  assert (h t11 + h t21 = h t12 + h t22);
   let get_val row col =
-    let top_row = row < t11.h in
-    let top_col = col < t11.w in
-    let row0 = if top_row then 0 else t11.h in
-    let col0 = if top_col then 0 else t11.w in
+    let top_row = row < h t11 in
+    let top_col = col < w t11 in
+    let row0 = if top_row then 0 else h t11 in
+    let col0 = if top_col then 0 else w t11 in
     let mat_to_use =
       if top_row then if top_col then t11 else t12
       else if top_col then t21
@@ -129,7 +127,54 @@ let make_from_submatrices t11 t12 t21 t22 =
     in
     get mat_to_use (row - row0) (col - col0)
   in
+  let h = h t11 + h t21 in
+  let w = w t11 + w t12 in
   init ~h ~w ~f:get_val
+
+let make_from_submatrices =
+  gen_make_from_submatrices ~get ~w:(fun t -> t.w) ~h:(fun t -> t.h)
+
+module Alg_matrix = struct
+  type alg = Norm of int t | Sum of (alg * alg) | Diff of (alg * alg)
+
+  let rec get_some m =
+    match m with
+    | Norm t -> t
+    | Sum (alg, _) -> get_some alg
+    | Diff (alg, _) -> get_some alg
+
+  let of_matrix t = Norm t
+
+  let check_add_compatible alg1 alg2 =
+    check_add_compatible (get_some alg1) (get_some alg2)
+
+  let check_mult_compatible alg1 alg2 =
+    check_mult_compatible (get_some alg1) (get_some alg2)
+
+  let sum alg1 alg2 =
+    check_add_compatible alg1 alg2;
+    Sum (alg1, alg2)
+
+  let diff alg1 alg2 =
+    check_add_compatible alg1 alg2;
+    Diff (alg1, alg2)
+
+  let h alg = (get_some alg).h
+
+  let w alg = (get_some alg).w
+
+  let rec aget alg row col =
+    let aget alg = aget alg row col in
+    match alg with
+    | Norm t -> get t row col
+    | Sum (alg1, alg2) -> aget alg1 + aget alg2
+    | Diff (alg1, alg2) -> aget alg1 - aget alg2
+
+  let to_matrix alg =
+    init ~h:(h alg) ~w:(w alg) ~f:(fun row col -> aget alg col row)
+
+  let make_from_submatrices = gen_make_from_submatrices ~get:aget ~h ~w
+end
 
 let split_on_point t row col =
   ( submatrix t 0 row 0 col,
