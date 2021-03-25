@@ -190,3 +190,44 @@ let exp t n cutoff =
   assert (t.w = t.h);
   List.fold (List.range 0 n) ~init:(id_matrix t.w) ~f:(fun prod _i ->
       mult_stras cutoff prod t)
+
+let mult_winn min_size stras_min_size t1 t2 = 
+  check_mult_compatible t1 t2;
+  if t1.h <= min_size then mult_stras stras_min_size t1 t2
+  else
+    let a0, a1, a2, a3 = split_on_point t1 (t1.h / 2) (t1.w / 2) in
+    let b0, b1, b2, b3 = split_on_point t2 (t2.h / 2) (t2.w / 2) in
+
+    let s = add a2 a3 in
+    let t = add b1 b0 in
+    let u2 = mult_winn min_size stras_min_size s t in
+    let c3 = u2 in (*Change to object copying*)
+    let c1 = u2 in (*Change to object copying*)
+
+    let u2 = mult_winn min_size stras_min_size a0 b0 in
+    let c0 = u2 in
+
+    let c0 = add c0 (mult_winn min_size stras_min_size a1 b2) in
+
+    let s = add s a0 in
+    let t = subtract b3 t in
+    let u2 = add u2 (mult_winn min_size stras_min_size s t) in
+    let c1 = add c1 u2 in
+
+    let s = add s a0
+    let c1 = add c1 (mult_winn min_size stras_min_size s b3) in
+
+    let t = subtract b2 t1_og in
+    let c2 = mult_winn min_size stras_min_size a3 t1 in
+    
+    let s = add a0 a2 in
+    let t = add b3 b1 in 
+    let u2 = add u2 (mult_winn min_size stras_min_size s t) in
+    let c3 = add c3 u2 in
+    let c2 = add c2 u2 in
+    (*combine the cs*)
+
+
+
+    
+
