@@ -1,13 +1,21 @@
 open! Core
 
-type 'a t = { h : int; w : int; m : 'a array array }
+type pos = { row : int; col : int }
+
+let create_pos row col = { row; col }
+
+type 'a t = { h : int; w : int; m : 'a array array; tl : pos }
 
 let create ~h ~w ~default =
-  { h; w; m = Array.make_matrix ~dimx:w ~dimy:h default }
+  { h; w; m = Array.make_matrix ~dimx:w ~dimy:h default; tl = create_pos 0 0 }
 
 exception Matrix_outofbounds of string
 
-let set t row col v = t.m.(col).(row) <- v
+let _copy m =
+  let new_m = Array.init (Array.length m.m) ~f:(fun i -> Array.copy m.m.(i)) in
+  { m with m = new_m }
+
+let set t row col v = t.m.(col + t.tl.col).(row + t.tl.row) <- v
 
 let get t row col =
   let check_in_bounds v max =
@@ -28,12 +36,15 @@ let get t row col =
   in
   check_in_bounds row t.h;
   check_in_bounds col t.w;
-  t.m.(col).(row)
+  t.m.(col + t.tl.col).(row + t.tl.row)
 
 (* like create, except rather than a singular value, it takes a function of form row -> col -> val *)
 let init ~h ~w ~f =
   let init_column col = Array.init h ~f:(fun row -> f row col) in
-  { h; w; m = Array.init w ~f:init_column }
+  { h; w; m = Array.init w ~f:init_column; tl = create_pos 0 0 }
+
+let submatrix_to_regular t =
+  init ~h:t.h ~w:t.w ~f:(fun row col -> get t row col)
 
 let transpose t = init ~h:t.w ~w:t.h ~f:(fun row col -> get t col row)
 
@@ -67,7 +78,8 @@ let submatrix t row1 row2 col1 col2 =
   (*Returns the submatrix of t from h1,w1 (inclusive) to h2,w2 (exclusive)*)
   let h = row2 - row1 in
   let w = col2 - col1 in
-  init ~h ~w ~f:(fun row col -> get t (row + row1) (col + col1))
+  let tl = create_pos row1 col1 in
+  { t with h; w; tl }
 
 let make_from_submatrices t11 t12 t21 t22 =
   (*Returns a matrix composed of submatrices*)
@@ -106,35 +118,8 @@ let pad_even t =
   init ~h ~w ~f:(fun row col ->
       if row < t.h && col < t.w then get t row col else 0)
 
-let rec mult_stras_2_power min_size t1_og t2_og =
-  check_mult_compatible t1_og t2_og;
-  let mult_stras = mult_stras_2_power min_size in
-  (*Assumes that matrices are square and have sizes that are powers of 2*)
-  if t1_og.h <= min_size then mult_normal t1_og t2_og
-  else
-    let t1 = pad_even t1_og in
-    let t2 = pad_even t2_og in
-    let a, b, c, d = split_on_point t1 (t1.h / 2) (t1.w / 2) in
-    let e, f, g, h = split_on_point t2 (t2.h / 2) (t2.w / 2) in
-
-    let p1 = mult_stras a (subtract f h) in
-    let p2 = mult_stras (add a b) h in
-    let p3 = mult_stras (add c d) e in
-    let p4 = mult_stras d (subtract g e) in
-    let p5 = mult_stras (add a d) (add e h) in
-    let p6 = mult_stras (subtract b d) (add g h) in
-    let p7 = mult_stras (subtract a c) (add e f) in
-    let t11 = add (add p5 p4) (subtract p6 p2) in
-    let t12 = add p1 p2 in
-    let t21 = add p3 p4 in
-    let t22 = subtract (add p5 p1) (add p3 p7) in
-    let result = make_from_submatrices t11 t12 t21 t22 in
-    submatrix result 0 t1_og.h 0 t2_og.w
-
-let mult_stras min_size t1 t2 = mult_stras_2_power min_size t1 t2
-
 let print t =
-  printf "H: %n, W: %n\n" t.h t.w;
+  let t = submatrix_to_regular t in
   let t = transpose t in
   let num_size n =
     let extra_one = if n < 0 then 1 else 0 in
@@ -171,3 +156,38 @@ let print t =
   print_endline horizontal;
   Array.iter t.m ~f:print_line;
   print_endline horizontal
+
+let rec mult_stras_2_power min_size t1_og t2_og =
+  check_mult_compatible t1_og t2_og;
+  let mult_stras = mult_stras_2_power min_size in
+  (*Assumes that matrices are square and have sizes that are powers of 2*)
+  if t1_og.h <= min_size then mult_normal t1_og t2_og
+  else
+    let t1 = pad_even t1_og in
+    let t2 = pad_even t2_og in
+    let a, b, c, d = split_on_point t1 (t1.h / 2) (t1.w / 2) in
+    let e, f, g, h = split_on_point t2 (t2.h / 2) (t2.w / 2) in
+
+    let p1 = mult_stras a (subtract f h) in
+    let p2 = mult_stras (add a b) h in
+    let p3 = mult_stras (add c d) e in
+    let p4 = mult_stras d (subtract g e) in
+    let p5 = mult_stras (add a d) (add e h) in
+    let p6 = mult_stras (subtract b d) (add g h) in
+    let p7 = mult_stras (subtract a c) (add e f) in
+    let t11 = add (add p5 p4) (subtract p6 p2) in
+    let t12 = add p1 p2 in
+    let t21 = add p3 p4 in
+    let t22 = subtract (add p5 p1) (add p3 p7) in
+    let result = make_from_submatrices t11 t12 t21 t22 in
+    submatrix result 0 t1_og.h 0 t2_og.w
+
+let mult_stras min_size t1 t2 = mult_stras_2_power min_size t1 t2
+
+let id_matrix dim =
+  init ~h:dim ~w:dim ~f:(fun row col -> if row = col then 1 else 0)
+
+let exp t n cutoff =
+  assert (t.w = t.h);
+  List.fold (List.range 0 n) ~init:(id_matrix t.w) ~f:(fun prod _i ->
+      mult_stras cutoff prod t)

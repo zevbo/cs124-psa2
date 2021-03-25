@@ -1,4 +1,4 @@
-TARGET = main
+TARGET = strassen
 
 $(TARGET):$(TARGET).ml
 	dune build $(TARGET).exe
