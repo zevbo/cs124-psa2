@@ -36,7 +36,7 @@ let get t row col =
   in
   check_in_bounds row t.h;
   check_in_bounds col t.w;
-  t.m.(col + t.tl.col).(row + t.tl.row)
+  try t.m.(col + t.tl.col).(row + t.tl.row) with _ -> 0
 
 (* like create, except rather than a singular value, it takes a function of form row -> col -> val *)
 let init ~h ~w ~f =
@@ -115,8 +115,7 @@ let pad_even t =
   let round_up v = if v % 2 = 0 then v else v + 1 in
   let h = round_up t.h in
   let w = round_up t.w in
-  init ~h ~w ~f:(fun row col ->
-      if row < t.h && col < t.w then get t row col else 0)
+  { t with h; w }
 
 let print t =
   let t = submatrix_to_regular t in

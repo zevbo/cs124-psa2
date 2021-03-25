@@ -10,7 +10,7 @@ val exp : int t -> int -> int -> int t
 
 val equal : int t -> int t -> bool
 
-val get : 'a t -> int -> int -> 'a
+val get : int t -> int -> int -> int
 val set : 'a t -> int -> int -> 'a -> unit
 
 val print : int t -> unit

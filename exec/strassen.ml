@@ -36,21 +36,21 @@ let test_speed_w_dim_avg num_trials dim min_val max_val crossover =
   let sum = List.sum (module Float) trials ~f:(fun a -> a) in
   sum /. Float.of_int (List.length trials)
 
-let rec analye_crossover dim ?(on = dim) ?(min_cross = 30) ?(max_cross = dim)
+let rec analyze_crossover dim ?(on = dim) ?(min_cross = 30) ?(max_cross = dim)
     min_val max_val num_trials_per =
   (* lc = logged crossover *)
-  let analye_crossover () =
-    analye_crossover dim ~min_cross ~max_cross min_val max_val num_trials_per
+  let analyze_crossover () =
+    analyze_crossover dim ~min_cross ~max_cross min_val max_val num_trials_per
       ~on:(on / 2)
   in
   let on = if on % 2 = 0 then on else on + 1 in
   if on < min_cross then []
-  else if on > max_cross then analye_crossover ()
+  else if on > max_cross then analyze_crossover ()
   else
     let curr_speed =
       test_speed_w_dim_avg num_trials_per dim min_val max_val on
     in
-    (on, curr_speed) :: analye_crossover ()
+    (on, curr_speed) :: analyze_crossover ()
 
 let get_range result =
   let min, _ =
@@ -64,12 +64,12 @@ let analyze_many_crossovers min_cross max_cross stride min_num max_num
     trials_per =
   let inc_constant = 8 in
   List.map (List.range min_cross max_cross ~stride) ~f:(fun cross ->
-      analye_crossover (inc_constant * cross)
+      analyze_crossover (inc_constant * cross)
         ~max_cross:((2 * cross) + 1)
         ~min_cross:(cross - 1) min_num max_num trials_per)
 
 let () =
-  let result = analyze_many_crossovers 42 43 2 (-5) 5 2 in
+  let result = analyze_many_crossovers 42 43 2 (-5) 5 10 in
   List.iter result ~f:(fun vals ->
       let i1, f1 = List.nth_exn vals 0 in
       let i2, f2 = List.nth_exn vals 1 in
