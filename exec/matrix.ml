@@ -30,20 +30,13 @@ let get t row col =
     if v < 0 || v >= max then
       raise
         (Matrix_outofbounds
-           (String.concat
-              [
-                "Attempted to get (";
-                Int.to_string row;
-                ", ";
-                Int.to_string col;
-                ") from matrix of size ";
-                Int.to_string t.h;
-                " x ";
-                Int.to_string t.w;
-              ]))
+           (sprintf "Attempted to get (%n , %n) from matrix of size %n x %n" row
+              col t.h t.w))
   in
   check_in_bounds row t.h;
   check_in_bounds col t.w;
+  (* Check to make sure that the point isn't in the padded area *)
+  (* If it is in the padded area though, return 0 *)
   if row + t.pad_h < t.h && col + t.pad_w < t.w then
     t.m.(col + t.tl.col).(row + t.tl.row)
   else 0
@@ -77,6 +70,8 @@ let subtract t1 t2 =
   check_add_compatible t1 t2;
   init ~h:t1.h ~w:t1.w ~f:(fun row col -> get t1 row col - get t2 row col)
 
+(* Example: if we get (long_arithmetic t0 [(t1, 1); (t2, -1); (t3, 1)]), that should be the same as (add (subtract (add t0 t1) t2) t3) *)
+(* The only difference is here we only create one new matrix *)
 let long_arithmetic t0 ts_and_sign =
   init ~h:t0.h ~w:t0.w ~f:(fun row col ->
       List.fold ts_and_sign ~init:(get t0 row col) ~f:(fun acc (t, sign) ->
@@ -97,11 +92,9 @@ let mult_normal t1 t2 =
   init ~h:t1.h ~w:t2.w ~f:calculate_cell
 
 let submatrix t row1 row2 col1 col2 =
-  (*Returns the submatrix of t from h1,w1 (inclusive) to h2,w2 (exclusive)*)
-  let h = row2 - row1 in
-  let w = col2 - col1 in
+  (*Returns the submatrix of t from row1,col1 (inclusive) to row2,col2 (exclusive)*)
   let tl = create_pos row1 col1 in
-  { t with h; w; tl }
+  { t with h = row2 - row1; w = col2 - col1; tl }
 
 let make_from_submatrices t11 t12 t21 t22 =
   (*Returns a matrix composed of submatrices*)
@@ -114,8 +107,10 @@ let make_from_submatrices t11 t12 t21 t22 =
   let h = t11.h + t21.h in
   let w = t11.w + t12.w in
   let get_val row col =
+    (* Checking if we are in top or bottom row and col *)
     let top_row = row < t11.h in
     let top_col = col < t11.w in
+    (* Starting row and col *)
     let row0 = if top_row then 0 else t11.h in
     let col0 = if top_col then 0 else t11.w in
     let mat_to_use =
@@ -133,13 +128,21 @@ let split_on_point t row col =
     submatrix t row t.h 0 col,
     submatrix t row t.h col t.w )
 
+let add_padding t pad_h pad_w =
+  {
+    t with
+    h = t.h + pad_h;
+    w = t.w + pad_w;
+    pad_h = t.pad_h + pad_h;
+    pad_w = t.pad_w + pad_w;
+  }
+
 let pad_even t =
-  let round_up v = if v % 2 = 0 then v else v + 1 in
-  let h = round_up t.h in
-  let w = round_up t.w in
-  { t with h; w; pad_h = t.pad_h + h - t.h; pad_w = t.pad_w + w - t.w }
+  let padding v = if v % 2 = 0 then 0 else 1 in
+  add_padding t (padding t.h) (padding t.w)
 
 let print t =
+  (* This function is a pile of garbage, but it's okay cause it isn't used in calculations *)
   let t = submatrix_to_regular t in
   let t = transpose t in
   let num_size n =
@@ -178,9 +181,9 @@ let print t =
   Array.iter t.m ~f:print_line;
   print_endline horizontal
 
-let rec mult_stras_2_power min_size t1_og t2_og =
+let rec mult_stras min_size t1_og t2_og =
   check_mult_compatible t1_og t2_og;
-  let mult_stras = mult_stras_2_power min_size in
+  let mult_stras = mult_stras min_size in
   (*Assumes that matrices are square and have sizes that are powers of 2*)
   if t1_og.h <= min_size then mult_normal t1_og t2_og
   else
@@ -202,8 +205,6 @@ let rec mult_stras_2_power min_size t1_og t2_og =
     let t22 = long_arithmetic p5 [ (p1, 1); (p3, -1); (p7, -1) ] in
     let result = make_from_submatrices t11 t12 t21 t22 in
     submatrix result 0 t1_og.h 0 t2_og.w
-
-let mult_stras min_size t1 t2 = mult_stras_2_power min_size t1 t2
 
 let id_matrix dim =
   init ~h:dim ~w:dim ~f:(fun row col -> if row = col then 1 else 0)
