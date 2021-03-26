@@ -25,10 +25,6 @@ let create ~h ~w ~default =
 
 exception Matrix_outofbounds of string
 
-let _copy m =
-  let new_m = Array.init (Array.length m.m) ~f:(fun i -> Array.copy m.m.(i)) in
-  { m with m = new_m }
-
 let get t row col =
   let check_in_bounds v max =
     if v < 0 || v >= max then

@@ -1,6 +1,6 @@
 open! Core
 
-let strassen_cutoff = 44
+let strassen_cutoff = 25
 
 let gen_matrix h w min_val max_val =
   Matrix.init ~h ~w ~f:(fun _row _col ->
@@ -96,14 +96,18 @@ let print_result result =
       printf "%f\n" f1);
   print_endline ""
 
+let print_diagnol (m : int Matrix.t) =
+  List.iter
+    (List.range 0 (min m.h m.w))
+    ~f:(fun n -> printf "%n\n" (Matrix.get m n n))
+
 let test_multiplication () =
   let m1, m2 = Read_matrix.read "test_matricies.txt" in
   assert (Matrix.equal (Matrix.mult_normal m1 m2) (Matrix.mult_stras 2 m1 m2))
 
 let () =
-  test_multiplication ();
-  let analyze_many_crossovers = analyze_many_crossovers 44 54 2 (-5) 5 100 in
-  print_result (analyze_many_crossovers 80);
-  print_result (analyze_many_crossovers 160);
-  print_result (analyze_many_crossovers 320);
-  ()
+  let args = Sys.get_argv () in
+  let filename = args.(3) in
+  let m1, m2 = Read_matrix.read filename in
+  let result = Matrix.mult_stras strassen_cutoff m1 m2 in
+  print_diagnol result
