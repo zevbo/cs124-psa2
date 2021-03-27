@@ -3,7 +3,7 @@ open! Core
 let print_diagnol (m : int Matrix.t) =
   List.iter
     (List.range 0 (min m.h m.w))
-    ~f:(fun n -> printf "%n\n" (Matrix.get m n n))
+    ~f:(fun n -> printf "%d\n" (Matrix.get m n n))
 
 let () =
   Testing.test_multiplication ();
