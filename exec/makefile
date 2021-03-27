@@ -1,6 +1,6 @@
 TARGET = strassen
 
 $(TARGET):$(TARGET).ml
-	rm -f strassen.exe
 	dune build $(TARGET).exe
-	mv _build/default/$(TARGET).exe ./
+	rm -f strassen
+	mv _build/default/$(TARGET).exe ./strassen
