@@ -58,89 +58,6 @@ let submatrix_to_regular t =
 
 let transpose t = init ~h:t.w ~w:t.h ~f:(fun row col -> get t col row)
 
-let check_add_compatible t1 t2 = assert (t1.w = t2.w && t1.h = t2.h)
-
-let check_mult_compatible t1 t2 = assert (t1.w = t2.h)
-
-let add t1 t2 =
-  check_add_compatible t1 t2;
-  init ~h:t1.h ~w:t1.w ~f:(fun row col -> get t1 row col + get t2 row col)
-
-let subtract t1 t2 =
-  check_add_compatible t1 t2;
-  init ~h:t1.h ~w:t1.w ~f:(fun row col -> get t1 row col - get t2 row col)
-
-(* Example: if we get (long_arithmetic t0 [(t1, 1); (t2, -1); (t3, 1)]), that should be the same as (add (subtract (add t0 t1) t2) t3) *)
-(* The only difference is here we only create one new matrix *)
-let long_arithmetic t0 ts_and_sign =
-  init ~h:t0.h ~w:t0.w ~f:(fun row col ->
-      List.fold ts_and_sign ~init:(get t0 row col) ~f:(fun acc (t, sign) ->
-          acc + (sign * get t row col)))
-
-let equal t1 t2 =
-  let rows_equal = Array.equal ( = ) in
-  t1.h = t2.h && t1.w = t2.w && Array.equal rows_equal t1.m t2.m
-
-let mult_normal t1 t2 =
-  check_mult_compatible t1 t2;
-  let calculate_cell row col =
-    List.sum
-      (module Int)
-      (List.range 0 t1.w)
-      ~f:(fun i -> get t1 row i * get t2 i col)
-  in
-  init ~h:t1.h ~w:t2.w ~f:calculate_cell
-
-let submatrix t row1 row2 col1 col2 =
-  (*Returns the submatrix of t from row1,col1 (inclusive) to row2,col2 (exclusive)*)
-  let tl = create_pos row1 col1 in
-  { t with h = row2 - row1; w = col2 - col1; tl }
-
-let make_from_submatrices t11 t12 t21 t22 =
-  (*Returns a matrix composed of submatrices*)
-  assert (t11.h = t12.h);
-  assert (t21.h = t22.h);
-  assert (t11.w = t21.w);
-  assert (t12.w = t22.w);
-  assert (t11.w + t12.w = t21.w + t22.w);
-  assert (t11.h + t21.h = t12.h + t22.h);
-  let h = t11.h + t21.h in
-  let w = t11.w + t12.w in
-  let get_val row col =
-    (* Checking if we are in top or bottom row and col *)
-    let top_row = row < t11.h in
-    let top_col = col < t11.w in
-    (* Starting row and col *)
-    let row0 = if top_row then 0 else t11.h in
-    let col0 = if top_col then 0 else t11.w in
-    let mat_to_use =
-      if top_row then if top_col then t11 else t12
-      else if top_col then t21
-      else t22
-    in
-    get mat_to_use (row - row0) (col - col0)
-  in
-  init ~h ~w ~f:get_val
-
-let split_on_point t row col =
-  ( submatrix t 0 row 0 col,
-    submatrix t 0 row col t.w,
-    submatrix t row t.h 0 col,
-    submatrix t row t.h col t.w )
-
-let add_padding t pad_h pad_w =
-  {
-    t with
-    h = t.h + pad_h;
-    w = t.w + pad_w;
-    pad_h = t.pad_h + pad_h;
-    pad_w = t.pad_w + pad_w;
-  }
-
-let pad_even t =
-  let padding v = if v % 2 = 0 then 0 else 1 in
-  add_padding t (padding t.h) (padding t.w)
-
 let print t =
   (* This function is a pile of garbage, but it's okay cause it isn't used in calculations *)
   let t = submatrix_to_regular t in
@@ -181,11 +98,106 @@ let print t =
   Array.iter t.m ~f:print_line;
   print_endline horizontal
 
-let rec mult_stras min_size t1_og t2_og =
+let check_add_compatible t1 t2 = assert (t1.w = t2.w && t1.h = t2.h)
+
+let check_mult_compatible t1 t2 = assert (t1.w = t2.h)
+
+let add t1 t2 =
+  check_add_compatible t1 t2;
+  init ~h:t1.h ~w:t1.w ~f:(fun row col -> get t1 row col + get t2 row col)
+
+let subtract t1 t2 =
+  check_add_compatible t1 t2;
+  init ~h:t1.h ~w:t1.w ~f:(fun row col -> get t1 row col - get t2 row col)
+
+(* Example: if we get (long_arithmetic t0 [(t1, 1); (t2, -1); (t3, 1)]), that should be the same as (add (subtract (add t0 t1) t2) t3) *)
+(* The only difference is here we only create one new matrix *)
+let long_arithmetic t0 ts_and_sign =
+  init ~h:t0.h ~w:t0.w ~f:(fun row col ->
+      List.fold ts_and_sign ~init:(get t0 row col) ~f:(fun acc (t, sign) ->
+          acc + (sign * get t row col)))
+
+let equal t1 t2 =
+  let t1 = submatrix_to_regular t1 in
+  let t2 = submatrix_to_regular t2 in
+  let rows_equal = Array.equal ( = ) in
+  t1.h = t2.h && t1.w = t2.w && Array.equal rows_equal t1.m t2.m
+
+let mult_normal t1 t2 =
+  check_mult_compatible t1 t2;
+  let calculate_cell row col =
+    List.sum
+      (module Int)
+      (List.range 0 t1.w)
+      ~f:(fun i -> get t1 row i * get t2 i col)
+  in
+  init ~h:t1.h ~w:t2.w ~f:calculate_cell
+
+let submatrix t row1 row2 col1 col2 =
+  (*Returns the submatrix of t from row1,col1 (inclusive) to row2,col2 (exclusive)*)
+  let tl = create_pos (row1 + t.tl.row) (col1 + t.tl.col) in
+  let pad_h = max 0 (row2 - t.h + t.pad_h) in
+  let pad_w = max 0 (col2 - t.w + t.pad_w) in
+  { t with h = row2 - row1; w = col2 - col1; tl; pad_h; pad_w }
+
+let make_from_submatrices t11 t12 t21 t22 =
+  (*Returns a matrix composed of submatrices*)
+  assert (t11.h = t12.h);
+  assert (t21.h = t22.h);
+  assert (t11.w = t21.w);
+  assert (t12.w = t22.w);
+  assert (t11.w + t12.w = t21.w + t22.w);
+  assert (t11.h + t21.h = t12.h + t22.h);
+  let h = t11.h + t21.h in
+  let w = t11.w + t12.w in
+  let get_val row col =
+    (* Checking if we are in top or bottom row and col *)
+    let top_row = row < t11.h in
+    let top_col = col < t11.w in
+    (* Starting row and col *)
+    let row0 = if top_row then 0 else t11.h in
+    let col0 = if top_col then 0 else t11.w in
+    let mat_to_use =
+      if top_row then if top_col then t11 else t12
+      else if top_col then t21
+      else t22
+    in
+    get mat_to_use (row - row0) (col - col0)
+  in
+  init ~h ~w ~f:get_val
+
+let split_on_point t row col =
+  ( submatrix t 0 row 0 col,
+    submatrix t 0 row col t.w,
+    submatrix t row t.h 0 col,
+    submatrix t row t.h col t.w )
+
+let add_padding t pad_h pad_w =
+  {
+    t with
+    h = t.h + pad_h;
+    w = t.w + pad_w;
+    pad_h = pad_h + t.pad_h;
+    pad_w = pad_w + t.pad_w;
+  }
+
+let pad_even t =
+  let padding v = if v % 2 = 0 then 0 else 1 in
+  add_padding t (padding t.h) (padding t.w)
+
+(*
+  let round_up v = if v % 2 = 0 then v else v + 1 in
+  let h = round_up t.h in
+  let w = round_up t.w in
+  init ~h ~w ~f:(fun row col ->
+      if row < t.h && col < t.w then get t row col else 0) *)
+
+let rec mult_stras even_cutoff odd_cutoff t1_og t2_og =
   check_mult_compatible t1_og t2_og;
-  let mult_stras = mult_stras min_size in
+  let mult_stras = mult_stras even_cutoff odd_cutoff in
   (*Assumes that matrices are square and have sizes that are powers of 2*)
-  if t1_og.h <= min_size then mult_normal t1_og t2_og
+  if t1_og.h <= if t1_og.h % 2 = 0 then even_cutoff else odd_cutoff then
+    mult_normal t1_og t2_og
   else
     let t1 = pad_even t1_og in
     let t2 = pad_even t2_og in
@@ -209,7 +221,7 @@ let rec mult_stras min_size t1_og t2_og =
 let id_matrix dim =
   init ~h:dim ~w:dim ~f:(fun row col -> if row = col then 1 else 0)
 
-let exp t n cutoff =
+let exp t n even_cutoff odd_cutoff =
   assert (t.w = t.h);
   List.fold (List.range 0 n) ~init:(id_matrix t.w) ~f:(fun prod _i ->
-      mult_stras cutoff prod t)
+      mult_stras even_cutoff odd_cutoff prod t)

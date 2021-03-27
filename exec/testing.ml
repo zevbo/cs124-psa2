@@ -1,6 +1,8 @@
 open! Core
 
-let strassen_cutoff = 25
+let strassen_even_cutoff = 50
+
+let strassen_odd_cutoff = 71
 
 let gen_matrix h w min_val max_val =
   Matrix.init ~h ~w ~f:(fun _row _col ->
@@ -23,14 +25,16 @@ let find_triangles size p =
   let adacency_matrix = gen_adacency_matrix size p in
   assert (adacency_matrix.w = size);
   assert (adacency_matrix.h = size);
-  let cubed = Matrix.exp adacency_matrix 3 strassen_cutoff in
+  let cubed =
+    Matrix.exp adacency_matrix 3 strassen_even_cutoff strassen_odd_cutoff
+  in
   assert (cubed.w = size);
   assert (cubed.h = size);
   let v =
     List.sum (module Int) (List.range 0 size) ~f:(fun i -> Matrix.get cubed i i)
     / 6
   in
-  assert (v >= 0);
+  if v < 0 then assert false;
   v
 
 let test_speed mult_f t1 t2 =
@@ -43,7 +47,7 @@ let test_speed_w_dim dim min_val max_val crossover =
   let gen () = gen_matrix dim dim min_val max_val in
   let t1 = gen () in
   let t2 = gen () in
-  test_speed (Matrix.mult_stras crossover) t1 t2
+  test_speed (Matrix.mult_stras crossover crossover) t1 t2
 
 let test_speed_w_dim_avg num_trials dim min_val max_val crossover =
   let trials =
@@ -70,12 +74,13 @@ let rec analyze_crossover dim ?(on = dim) ?(min_cross = 30) ?(max_cross = dim)
     (on, curr_speed) :: analyze_crossover ()
 
 let analyze_many_crossovers min_cross max_cross stride min_num max_num
-    trials_per min_dim =
+    trials_per min_dim odd =
   let cross_to_dim cross =
     let exp =
       Float.round_up (log (Float.of_int min_dim /. Float.of_int cross) /. log 2.)
     in
-    Int.of_float (2. **. exp) * cross
+    if odd then ((cross * 2) - 1) * Int.of_float (2. **. (exp -. 1.))
+    else Int.of_float (2. **. exp) * cross
   in
   List.map (List.range min_cross max_cross ~stride) ~f:(fun cross ->
       analyze_crossover (cross_to_dim cross)
@@ -104,8 +109,19 @@ let print_result result =
       printf "%f\n" f1);
   print_endline ""
 
+let test_specific_multiplication mat1 mat2 =
+  let m1 = Matrix.mult_normal mat1 mat2 in
+  let m2 = Matrix.mult_stras 2 2 mat1 mat2 in
+  if not (Matrix.equal m1 m2) then (
+    printf "(%n, %n), (%n, %n)\n" m1.h m1.w m2.h m2.w;
+    Matrix.print m1;
+    Matrix.print m2;
+    assert false )
+
 let test_multiplication () =
-  let m1, m2 = Read_matrix.read "test_matricies.txt" in
-  assert (Matrix.equal (Matrix.mult_normal m1 m2) (Matrix.mult_stras 2 m1 m2))
+  let mat1, mat2 = Read_matrix.read "test_matricies.txt" in
+  test_specific_multiplication mat1 mat2;
+  test_specific_multiplication (gen_matrix 101 91 0 5) (gen_matrix 91 73 0 5);
+  ()
 
 let () = ()
